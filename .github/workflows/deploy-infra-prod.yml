@@ -1,0 +1,37 @@
+name: Deploy Infra prod
+run-name: ${{ github.actor }} is building ${{github.build}} 🚀
+on: [workflow_dispatch]
+jobs:
+  tofu-plan-and-apply-prod:
+    runs-on: ubuntu-22.04
+    environment: prod
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+      - name: Install OpenTofu
+        uses: agent-0028/deps/github_actions/install-tofu-client@main
+      - name: OpenTofu lint
+        working-directory: terraform/prod
+        run: |
+          tofu fmt --check --recursive
+      - name: Tofu Plan
+        working-directory: terraform/prod
+        env:
+          AWS_ACCESS_KEY_ID: ${{ vars.AWS_ACCESS_KEY_ID }}
+          AWS_DEFAULT_REGION: ${{ vars.AWS_DEFAULT_REGION }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+        run: |
+          tofu init
+          tofu workspace select default
+          tofu plan --input=false --out=./infra.tfplan
+      - name: Tofu Apply
+        working-directory: terraform/prod
+        env:
+          AWS_ACCESS_KEY_ID: ${{ vars.AWS_ACCESS_KEY_ID }}
+          AWS_DEFAULT_REGION: ${{ vars.AWS_DEFAULT_REGION }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+        run: |
+          tofu init
+          tofu workspace select default
+          tofu apply --input=false ./infra.tfplan
+      - run: echo "🍏 This job's status is ${{ job.status }}."
