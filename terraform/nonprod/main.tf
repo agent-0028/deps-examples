@@ -4,7 +4,7 @@ provider "aws" {
 
 terraform {
   backend "s3" {
-    bucket = "deps-example-bucket-for-state"
+    bucket = "deps-examples-bucket-for-state"
     # Change this!
     # Should be different from prod.
     key    = "terraform-state/template-tofu-nonprod/tf"

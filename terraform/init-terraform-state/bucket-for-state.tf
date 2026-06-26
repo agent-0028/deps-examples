@@ -1,5 +1,5 @@
 resource "aws_s3_bucket" "deps-example" {
-  bucket              = "deps-example-bucket-for-state"
+  bucket              = "deps-examples-bucket-for-state"
   bucket_prefix       = null
   force_destroy       = null
   object_lock_enabled = false
