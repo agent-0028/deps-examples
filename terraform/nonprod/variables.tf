@@ -1,4 +1,4 @@
 
 variable "repo" {
-  default = "template-tofu"
+  default = "deps-examples"
 }

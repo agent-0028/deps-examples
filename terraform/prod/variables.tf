@@ -1,3 +1,3 @@
 variable "repo" {
-  default = "template-tofu"
+  default = "dev-examples"
 }
