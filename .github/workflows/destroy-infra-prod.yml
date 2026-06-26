@@ -24,10 +24,10 @@ jobs:
           tofu init
           tofu workspace select default
           # uncomment to actually destroy
-          # tofu apply -auto-approve -destroy
+          tofu apply -auto-approve -destroy
 
           # change this if actually destroying, otherwise kinda confusing
           echo "~~~~~~~~~~~~~~~~~~~~~~"
-          echo "Not really destroying!"
+          echo "DESTROYING!!"
           echo "~~~~~~~~~~~~~~~~~~~~~~"
       - run: echo "🍏 This job's status is ${{ job.status }}."
