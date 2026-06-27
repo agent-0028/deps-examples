@@ -7,7 +7,7 @@ terraform {
     bucket = "deps-examples-bucket-for-state"
     # Change this!
     # Should be different from nonprod.
-    key    = "terraform-state/template-tofu-prod/tf"
+    key    = "terraform-state/deps-examples-prod/tf"
     region = "us-west-2"
   }
 }
