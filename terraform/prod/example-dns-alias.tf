@@ -1,5 +1,10 @@
+locals {
+  # S3 website aliases require the bucket name to match the Route53 record FQDN
+  www_fqdn = "www.${module.example_hosted_zone.qualified_name}"
+}
+
 resource "aws_s3_bucket" "dns_alias_target" {
-  bucket = "deps-examples-dns-alias${module.config.env-suffix}"
+  bucket = local.www_fqdn
 
   tags = {
     Repo        = module.config.repo
@@ -49,7 +54,7 @@ module "example_dns_alias" {
   name                   = "www"
   zone_id                = module.example_hosted_zone.id
   value                  = aws_s3_bucket_website_configuration.dns_alias_target.website_endpoint
-  alias_zone_id          = "Z3BJ6K6RIHEN7M" # S3 website hosted zone ID for us-west-2; region-specific
+  alias_zone_id          = "Z3BJ6K6RIION7M" # S3 website hosted zone ID for us-west-2
   evaluate_target_health = false
   env-suffix             = module.config.env-suffix
   env                    = module.config.env
