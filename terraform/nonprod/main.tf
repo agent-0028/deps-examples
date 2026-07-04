@@ -13,7 +13,7 @@ terraform {
 }
 
 module "config" {
-  source = "git::https://github.com/agent-0028/deps.git//terraform/modules/config?ref=main"
+  source = "git::https://github.com/agent-0028/deps.git//terraform/modules/config?ref=add-env-suffix-to-dns-modules"
   env    = "nonprod"
   repo   = var.repo
 }

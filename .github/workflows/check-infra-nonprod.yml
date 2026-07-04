@@ -9,7 +9,7 @@ jobs:
       - name: Check out repository
         uses: actions/checkout@v4
       - name: Install OpenTofu
-        uses: agent-0028/deps/github_actions/install-tofu-client@main
+        uses: agent-0028/deps/github_actions/install-tofu-client@add-env-suffix-to-dns-modules
       - name: OpenTofu lint
         working-directory: terraform/nonprod
         run: |

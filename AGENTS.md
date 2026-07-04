@@ -2,6 +2,8 @@
 
 This is a Terraform infrastructure project.
 
+It is an "examples" repository for the [deps](https://github.com/agent-0028/deps) repository.
+
 We are using OpenTofu, so the command line tool is `tofu`.
 
 OpenTofu v1.11.1 is compatible with Terraform v1.5.7 and earlier versions.
