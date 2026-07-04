@@ -63,14 +63,14 @@ locals {
 
 | Input shape | nonprod result | Notes |
 |-------------|----------------|-------|
-| `deps-examples.example.com` | `deps-examples-nonprod.example.com` | Suffix inserted after the **first label** — use for zone apex names |
+| `deps-examples.sproutlandscapedesign.com` | `deps-examples-nonprod.sproutlandscapedesign.com` | Suffix inserted after the **first label** — use for zone apex names |
 | `verify` (single label) | `verify` (unchanged) | Use for records **inside** an already-suffixed zone |
-| `www` (single label) | `www` (unchanged) | Resolves to `www.deps-examples-nonprod.example.com` when zone is suffixed |
-| `verify.deps-examples.example.com` | `verify-nonprod.deps-examples.example.com` | Suffix on first label only — **not** the zone apex; avoid for in-zone records |
+| `www` (single label) | `www` (unchanged) | Resolves to `www.deps-examples-nonprod.sproutlandscapedesign.com` when zone is suffixed |
+| `verify.deps-examples.sproutlandscapedesign.com` | `verify-nonprod.deps-examples.sproutlandscapedesign.com` | Suffix on first label only — **not** the zone apex; avoid for in-zone records |
 
 **Call-site guidance:**
 
-- **`hosted_zone`:** pass the base apex FQDN (e.g. `deps-examples.example.com`); module produces the env-qualified zone name.
+- **`hosted_zone`:** pass the base apex FQDN (e.g. `deps-examples.sproutlandscapedesign.com`); module produces the env-qualified zone name.
 - **`dns_record` / `dns_alias`:** pass a **short, single-label name** (e.g. `verify`, `www`) so the record lands in the correct zone without double-suffixing or suffixing the wrong label.
 
 The `hosted_zone` module also exports `qualified_name` (the final zone name after suffixing).
@@ -126,7 +126,7 @@ Creates the Route53 hosted zone that the other two examples depend on.
 module "example_hosted_zone" {
   source = "git::https://github.com/agent-0028/deps.git//terraform/modules/hosted_zone?ref=main"
 
-  name       = "deps-examples.example.com"
+  name       = "deps-examples.sproutlandscapedesign.com"
   env-suffix = module.config.env-suffix
   env        = module.config.env
   repo       = module.config.repo
@@ -135,8 +135,8 @@ module "example_hosted_zone" {
 
 Resulting zone names:
 
-- **nonprod:** `deps-examples-nonprod.example.com`
-- **prod:** `deps-examples.example.com`
+- **nonprod:** `deps-examples-nonprod.sproutlandscapedesign.com`
+- **prod:** `deps-examples.sproutlandscapedesign.com`
 
 ### 2. `example-dns-record.tf`
 
@@ -158,8 +158,8 @@ module "example_dns_record" {
 
 Resulting record FQDNs:
 
-- **nonprod:** `verify.deps-examples-nonprod.example.com`
-- **prod:** `verify.deps-examples.example.com`
+- **nonprod:** `verify.deps-examples-nonprod.sproutlandscapedesign.com`
+- **prod:** `verify.deps-examples.sproutlandscapedesign.com`
 
 ### 3. `example-dns-alias.tf`
 
@@ -189,8 +189,8 @@ module "example_dns_alias" {
 
 Resulting alias FQDNs:
 
-- **nonprod:** `www.deps-examples-nonprod.example.com`
-- **prod:** `www.deps-examples.example.com`
+- **nonprod:** `www.deps-examples-nonprod.sproutlandscapedesign.com`
+- **prod:** `www.deps-examples.sproutlandscapedesign.com`
 
 The hardcoded `alias_zone_id` is the [documented AWS constant](https://docs.aws.amazon.com/general/latest/gr/s3.html) for S3 website endpoints in `us-west-2` (matches the backend region in `main.tf`). Add a comment in the file noting it is region-specific.
 
@@ -212,7 +212,9 @@ The hardcoded `alias_zone_id` is the [documented AWS constant](https://docs.aws.
 ## Cost and operational notes
 
 - Each hosted zone costs ~$0.50/month while it exists; destroy workflows will remove it.
-- Zones under `*.example.com` will not resolve publicly unless NS records are delegated at a registrar — acceptable for an examples repo focused on module usage, not live DNS.
+- Route53 public zones for `example.com` and its subdomains are **reserved by AWS** and cannot be created.
+- Zone apex is `deps-examples.sproutlandscapedesign.com` — a subdomain of `sproutlandscapedesign.com`, whose apex zone is managed in `tinisi/infra`. For public resolution, delegate NS records from the parent zone.
+- Zones will not resolve publicly until NS records are delegated — acceptable for an examples repo focused on module usage, not live DNS.
 - The standalone S3 website bucket is separate from the state bucket and the example bucket; all three can coexist with distinct names.
 
 ## Out of scope
