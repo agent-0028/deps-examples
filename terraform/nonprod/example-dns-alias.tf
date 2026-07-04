@@ -44,7 +44,7 @@ resource "aws_s3_bucket_policy" "dns_alias_target" {
 }
 
 module "example_dns_alias" {
-  source = "git::https://github.com/agent-0028/deps.git//terraform/modules/dns_alias?ref=add-env-suffix-to-dns-modules"
+  source = "git::https://github.com/agent-0028/deps.git//terraform/modules/dns_alias?ref=main"
 
   name                   = "www"
   zone_id                = module.example_hosted_zone.id
