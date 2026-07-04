@@ -1,5 +1,5 @@
 module "example_bucket" {
-  source = "git::https://github.com/agent-0028/deps.git//terraform/modules/bucket?ref=main"
+  source = "git::https://github.com/agent-0028/deps.git//terraform/modules/bucket?ref=add-env-suffix-to-dns-modules"
   attributes = {
     bucket : "deps-examples-bucket"
   }
