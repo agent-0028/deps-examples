@@ -1,5 +1,5 @@
 module "example_dns_record" {
-  source = "git::https://github.com/agent-0028/deps.git//terraform/modules/dns_record?ref=add-env-suffix-to-dns-modules"
+  source = "git::https://github.com/agent-0028/deps.git//terraform/modules/dns_record?ref=main"
 
   name       = "verify"
   type       = "TXT"
