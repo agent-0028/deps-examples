@@ -10,7 +10,7 @@ All deps references point at **`main`**.
 
 ## Goal
 
-Add idiomatic example usage for the DNS modules in this repo, with prod and nonprod sets of Terraform scripts, following the pattern established in [`terraform/nonprod/example-bucket.tf`](terraform/nonprod/example-bucket.tf).
+Add idiomatic example usage for the DNS modules in this repo, with prod and nonprod sets of Terraform scripts, following the pattern established in [`terraform/nonprod/example-bucket.tf`](../terraform/nonprod/example-bucket.tf).
 
 The `config` module is already used throughout via `module.config` in each environment's `main.tf` and does not need a separate example.
 
