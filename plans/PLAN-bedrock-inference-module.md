@@ -5,16 +5,16 @@
 
 Module plan for provisioning a Bedrock-backed LLM connection bundle: tier-based model selection, optional explicit `model_id`, Bedrock API key, and OpenAI-compatible endpoint outputs for Pi and other coding agents.
 
-**Development workflow:** follow [PLAN-local-first-module-development.md](PLAN-local-first-module-development.md) (local spike → promote to deps → CI → human apply).
+**Development workflow:** follow [PLAN-local-first-module-development.md](PLAN-local-first-module-development.md). Spike branch is throwaway (push + human Deploy/Destroy smoke test before promotion); module promotes to deps; a **follow-on PR** in examples adds git-pinned `example-bedrock-inference.tf` only — clean history on `main`.
 
 ---
 
 ## Implementation checklist
 
-- [ ] **Phase 1:** Branch in deps-examples; create `terraform/modules/bedrock_inference/` + `tests/`; add `example-bedrock-inference.tf` (nonprod + prod); green `tofu test`
-- [ ] **Phase 2:** Copy module to `deps/terraform/modules/bedrock_inference/`; validate + test; push deps feature branch
-- [ ] **Phase 3:** Pin examples to deps branch; remove local module; Check Infra nonprod green
-- [ ] **Phase 4:** Merge both PRs; human Deploy Infra nonprod; verify Pi/curl invoke; optional Destroy
+- [ ] **Phase 1:** Spike branch; `terraform/modules/bedrock_inference/` + `tests/` + relative `example-bedrock-inference.tf`; green `tofu test`; push spike; Check Infra; human Deploy → verify (Pi/curl) → Destroy; delete spike
+- [ ] **Phase 2:** Copy module to deps; validate + test; open deps PR
+- [ ] **Phase 3:** Follow-on examples branch + PR from `main`: git-pinned `example-bedrock-inference.tf` only; Check Infra; merge PR
+- [ ] **Phase 4:** Merge deps PR; ensure examples pin is `?ref=main`; human Deploy Infra nonprod; verify invoke; optional Destroy
 - [ ] **Phase 5:** Document bedrock module usage in AGENTS.md (after workflow doc from first cycle)
 
 ---

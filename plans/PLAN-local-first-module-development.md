@@ -5,16 +5,23 @@
 
 Strategy for prototyping Terraform modules in this repo, promoting them to [deps](../deps), and validating them through CI before human-gated apply.
 
+**Key rules:**
+
+- The deps-examples **spike branch** (Phase 1: local module + relative `source`) is **throwaway** — never merged, never PR'd to `main`. Delete it when promotion to deps is done; keeping spike history in examples is not a goal.
+- For **significant modules**, push the spike branch and run a **full nonprod smoke test** (Check Infra → human Deploy → verify → Destroy) before promoting to deps. Local-only spike is fine for trivial or early throwaway experiments.
+- Module code and tests land in **deps** (merged PR there).
+- A **follow-on branch and PR** in examples (Phase 3) adds only git-pinned `example-*.tf` files — a small, reviewable changeset with no development noise on `main`.
+
 **Module-specific plans:** see [PLAN-bedrock-inference-module.md](PLAN-bedrock-inference-module.md) for the first module (`bedrock_inference`).
 
 ---
 
 ## Implementation checklist (generic)
 
-- [ ] **Phase 1:** Create deps-examples branch; add `terraform/modules/<name>/` (with `tests/`) + `example-<name>.tf`; iterate with `tofu test`
+- [ ] **Phase 1:** Throwaway spike branch; `terraform/modules/<name>/` + `tests/` + relative `example-<name>.tf`; `tofu test` green; **push spike**; Check Infra nonprod; **human Deploy → verify → Destroy** on spike; delete spike — never merge
 - [ ] **Phase 2:** Copy module directory (including tests) to `deps/terraform/modules/<name>/`; `fmt`, `validate`, `test`; push deps feature branch
-- [ ] **Phase 3:** Swap examples to git `?ref=<deps-branch>`; remove local module; run Check Infra nonprod on feature branch
-- [ ] **Phase 4:** Merge deps; revert pins to `main`; merge examples; human runs Deploy Infra nonprod (optional Destroy)
+- [ ] **Phase 3:** Follow-on examples branch from `main` + PR: git `?ref=<deps-branch>` and `example-<name>.tf` only; Check Infra nonprod; merge PR (clean history — no spike commits)
+- [ ] **Phase 4:** Merge deps PR → `main`; merge examples integration PR → `main`; human runs Deploy Infra nonprod (optional Destroy)
 - [ ] **Phase 5:** After first successful cycle, update [AGENTS.md](../AGENTS.md) and [deps/AGENTS.md](../deps/AGENTS.md) with local-first workflow and AFK agent handoffs
 
 ---
@@ -63,16 +70,18 @@ flowchart LR
 | Push branch | `git push` | No | No |
 | CI plan | **Check Infra nonprod/prod** via `gh workflow run` | No (plan only) | No — CI has GitHub env secrets |
 
-The agent inner loop during Phase 1 is **`tofu test` → edit → repeat**. No AWS, no push required until the interface stabilizes.
+The agent inner loop during Phase 1 is **`tofu test` → edit → repeat**. No AWS until interface tests are green.
 
-For stack-level verification, the agent pushes the feature branch and triggers Check Infra:
+For **significant modules**, the agent then pushes the spike branch, triggers Check Infra, and hands off for human apply/destroy smoke test (see Phase 1 below). Local-only spike (no push) remains valid for trivial modules or very early experiments.
 
 ```bash
-gh workflow run check-infra-nonprod.yml --ref <feature-branch>
+gh workflow run check-infra-nonprod.yml --ref <spike-branch>
 gh run watch
 ```
 
 Check Infra runs `tofu plan` against real remote state and AWS — the integration test — without apply.
+
+**Spike smoke test (significant modules, human-gated):** After Check Infra is green on the spike branch, the human runs **Deploy Infra nonprod** → verifies resources in AWS → **Destroy Infra nonprod**. Spike branches write to the same nonprod state as `main`; that is acceptable because nonprod is ephemeral and Destroy tears down the smoke-test resources. Do not merge the spike branch.
 
 **Optional:** Local `tofu plan` in nonprod if the agent environment has AWS creds. Not required for AFK; CI plan is the canonical integration check per [AGENTS.md](../AGENTS.md).
 
@@ -80,14 +89,15 @@ Check Infra runs `tofu plan` against real remote state and AWS — the integrati
 
 | Step | Workflow | When | Why human |
 |------|----------|------|-----------|
-| Apply nonprod | **Deploy Infra nonprod** | After merge to `main` | Creates/modifies AWS resources |
-| Tear down nonprod | **Destroy Infra nonprod** | End of test cycle | Destructive |
+| Apply nonprod (spike smoke) | **Deploy Infra nonprod** | Phase 1, from spike branch | Creates/modifies AWS resources; validates module before deps promotion |
+| Tear down nonprod (spike smoke) | **Destroy Infra nonprod** | After spike deploy verification | Cleans up smoke-test resources |
+| Apply nonprod (post-merge) | **Deploy Infra nonprod** | Phase 4, from `main` | Validates git-pinned example after merge |
 | Apply prod | **Deploy Infra prod** | After merge to `main` | Long-lived prod resources |
 | PR merge | GitHub review | Before deploy | Code review gate |
 
 Deploy runs plan then apply in one job ([deploy-infra-nonprod.yml](../.github/workflows/deploy-infra-nonprod.yml)).
 
-**Agent stops and hands off** with: branch pushed, Check Infra green, plan summary attached to PR or chat.
+**Agent stops and hands off** with: spike branch pushed, Check Infra green, plan summary attached — then human runs Deploy/Destroy smoke test on the spike before Phase 2 promotion.
 
 ### Feedback loop mapping (app dev → infra)
 
@@ -109,29 +119,29 @@ After the first module cycle, consider adding `tofu test` in Check workflows for
 
 ```mermaid
 flowchart TD
-  subgraph phase1 [Phase 1: Local spike in examples]
-    A[Branch in deps-examples] --> B[Create module under terraform/modules/name]
-    B --> C[Add tests under module/tests]
-    C --> D[Add example-name.tf with relative source]
-    D --> E["Agent loop: tofu test until green"]
-    E --> F[Push branch + Check Infra plan]
-    F --> G{Plan clean?}
+  subgraph phase1 [Phase 1: Throwaway spike branch]
+    A[Spike branch in deps-examples] --> B[Local module under terraform/modules/name]
+    B --> C[tests/ + example-name.tf relative source]
+    C --> D["Agent loop: tofu test until green"]
+    D --> E[Push spike + Check Infra nonprod]
+    E --> F[Human: Deploy verify Destroy on spike]
+    F --> G{Ready to promote?}
     G -->|No| B
-    G -->|Yes| H[Human review handoff]
+    G -->|Yes| H[Delete spike branch — do not merge]
   end
   subgraph phase2 [Phase 2: Promote to deps]
     H --> I["Copy module dir incl. tests/ to deps"]
-    I --> J["tofu validate + tofu test in deps module dir"]
+    I --> J["tofu validate + tofu test in deps"]
     J --> K[Push deps feature branch]
   end
-  subgraph phase3 [Phase 3: CI integration]
-    K --> L[Pin examples to ?ref=deps-branch]
-    L --> M[Remove local module + relative source]
-    M --> N[Check Infra nonprod on examples branch]
-    N --> O[Human merge PRs]
+  subgraph phase3 [Phase 3: Follow-on example PR]
+    K --> L[New branch from main in examples]
+    L --> M[PR: example-name.tf with git ?ref=deps-branch]
+    M --> N[Check Infra nonprod]
+    N --> O[Merge example PR — clean history]
   end
   subgraph phase4 [Phase 4: Ship + apply]
-    O --> P[Human: Deploy Infra nonprod]
+    O --> P[Human: Deploy Infra nonprod from main]
     P --> Q[Human: verify AWS]
     Q --> R[Human: Destroy Infra nonprod optional]
   end
@@ -141,17 +151,17 @@ flowchart TD
   end
 ```
 
-### Phase 1 — Local spike (examples repo only)
+### Phase 1 — Throwaway spike branch (examples repo, never merged)
 
-**Goal:** Fast iteration without pushing to deps.
+**Goal:** Fast local iteration without pushing to deps. This branch is **disposable** — do not open a PR to `main`.
 
-1. Create a feature branch in deps-examples.
+1. Create a spike branch in deps-examples (naming e.g. `spike/<module-name>` makes intent clear).
 2. Add the module under `terraform/modules/<name>/` using the same layout as deps:
    - `main.tf` — variables (and some outputs)
    - `<name>.tf` — resources and outputs
    - `tests/*.tftest.hcl` — interface contract tests
    - Follow existing conventions: `env`, `env-suffix`, `repo` wired from `module.config`; apply suffix internally (see [deps bucket module](../deps/terraform/modules/bucket/)).
-3. Add `example-<name>.tf` in both [terraform/nonprod/](../terraform/nonprod/) and [terraform/prod/](../terraform/prod/) with relative source:
+3. Add `example-<name>.tf` with relative source on the spike branch (required for stack-level plan and smoke test). These files are **not** what merges to `main` — the follow-on example PR (Phase 3) adds fresh git-pinned files instead.
 
 ```hcl
 module "example_foo" {
@@ -181,13 +191,11 @@ tofu init -backend=false
 tofu test
 ```
 
-6. Agent integration check (push + CI plan):
+6. Push spike branch; trigger **Check Infra nonprod** on the spike branch. Still do not merge or open a PR to `main`.
 
-```bash
-git push -u origin <feature-branch>
-gh workflow run check-infra-nonprod.yml --ref <feature-branch>
-gh run watch
-```
+7. **Human smoke test (standard for significant modules):** Run **Deploy Infra nonprod** from the spike branch → verify resources in AWS (outputs, console, invoke as applicable) → run **Destroy Infra nonprod**. Only promote to deps after this passes.
+
+8. Delete the spike branch (local and remote). Module code copies to deps in Phase 2; spike commits never land on `main`.
 
 ### Phase 2 — Promote to deps (module + tests together)
 
@@ -195,22 +203,36 @@ gh run watch
 2. In deps: `tofu fmt -recursive terraform/` and per-module validate + test.
 3. Push a feature branch in deps.
 
-What stays in examples after promotion: only `example-<name>.tf`. Module tests live in deps permanently; local copy deleted in Phase 3.
+Nothing from the spike branch merges to examples `main`. Module code and tests live in deps from here on.
 
-### Phase 3 — CI integration
+### Phase 3 — Follow-on example branch and PR (mergeable)
 
-1. Replace relative source with git pin: `?ref=<deps-branch>`.
-2. Delete local module copy from examples.
-3. Run Check Infra nonprod on the feature branch.
-4. Human merge PRs; Deploy Infra nonprod from `main` to apply.
+**Goal:** A **fresh branch from `main`** and a **focused PR** that only adds consumer wiring. This is what appears in examples history — not the spike.
 
-Avoid Deploy/Destroy from feature branches — they write to the same remote state as `main`.
+1. After deps module is ready (deps feature branch open or merged), branch from current `main` in deps-examples.
+2. Open a PR whose diff is essentially: git-pinned `example-<name>.tf` in nonprod and prod (plus any stack outputs). No `terraform/modules/` directory.
+
+```hcl
+module "example_foo" {
+  source = "git::https://github.com/agent-0028/deps.git//terraform/modules/foo?ref=<deps-branch>"
+
+  env-suffix = module.config.env-suffix
+  env        = module.config.env
+  repo       = module.config.repo
+}
+```
+
+3. Pin to deps feature branch during review; switch pin to `?ref=main` before or as part of merge once deps is on `main`.
+4. Run Check Infra nonprod on the PR branch.
+5. Merge the example PR.
+
+Examples `main` history should read like a normal consumer change (“add example for bedrock_inference”), not a module development arc.
 
 ### Phase 4 — Ship and apply
 
 1. Merge deps PR → `main`.
-2. Revert all branch pins in examples to `?ref=main`.
-3. Merge examples PR.
+2. Ensure examples integration branch uses `?ref=main` for deps (revert temporary branch pin if still present).
+3. Merge examples example PR → `main`.
 4. Human: Deploy Infra nonprod, verify AWS, optional Destroy.
 5. Human (when ready): Deploy Infra prod.
 
@@ -225,17 +247,22 @@ Update [AGENTS.md](../AGENTS.md) and [deps/AGENTS.md](../deps/AGENTS.md) with lo
 | Layer | Where | Command | Agent AFK? | Mutates AWS? |
 |-------|-------|---------|------------|--------------|
 | Interface contract | `terraform/modules/<name>/tests/` | `tofu test` | Yes | No |
-| Stack plan (CI) | feature branch | Check Infra | Yes | No |
-| Stack apply | `main` | Deploy Infra | No — human | Yes |
-| Teardown | `main` | Destroy Infra nonprod | No — human | Yes |
+| Stack plan (CI) | spike or feature branch | Check Infra | Yes | No |
+| Stack apply (spike smoke) | spike branch | Deploy Infra nonprod | No — human | Yes |
+| Stack teardown (spike smoke) | spike branch | Destroy Infra nonprod | No — human | Yes |
+| Stack apply (post-merge) | `main` | Deploy Infra | No — human | Yes |
+| Teardown (post-merge) | `main` | Destroy Infra nonprod | No — human | Yes |
 
 ---
 
 ## Caveats
 
-1. Two sources of truth during Phase 1 only — delete local module when switching to git pin; never merge relative sources to `main`.
-2. Add matching `example-*.tf` in both nonprod and prod from the start.
-3. Agents must not run Deploy/Destroy or local `tofu apply`/`tofu destroy`.
+1. **Spike never merges** — no `terraform/modules/` or relative sources on `main`. Push spike for smoke test, then delete it; remote spike branches are disposable, not archived history.
+2. **Spike smoke test is standard** — for significant modules, human runs Deploy → verify → Destroy on the spike branch before deps promotion. Spike deploy uses shared nonprod state; Destroy cleans up.
+3. **Follow-on example PR only** — what merges to examples `main` is a small PR adding git-pinned `example-*.tf`. Branch fresh from `main`, not from spike.
+4. **Two repos, two merge stories** — deps PR merges module code; examples PR merges consumer wiring only.
+5. Add matching `example-*.tf` in both nonprod and prod on the example PR.
+6. Agents must not run Deploy/Destroy or local `tofu apply`/`tofu destroy`.
 
 ---
 
