@@ -115,15 +115,28 @@ variable "attributes" {
 
 `indie` is the short name for the third bucket — not everything is open source, but it covers Chinese labs, Meta, Mistral, and similar vendors outside Anthropic/OpenAI.
 
-**Resolution:**
+**Resolution — mantle vs provision IDs:**
+
+Bedrock uses different ID strings for mantle Chat Completions vs runtime/IAM provisioning. Each cell in `tiers.tf` stores both:
 
 ```hcl
-resolved_model_id = var.attributes.model_id != null
-  ? var.attributes.model_id
-  : local.tier_models[var.attributes.vendor][var.attributes.tier]
+# model_id output        → tier_selection.mantle_model_id    (OpenAI SDK on openai_mantle_base_url)
+# provision_model_id output → tier_selection.provision_model_id (Pi, IAM, inference profile)
 ```
 
-Geo inference profile IDs (`us.*`) use inference-profile ARNs; foundation model IDs (`deepseek.v3.2`, `openai.gpt-oss-20b-1:0`) use foundation-model ARNs for `model_source` and IAM invoke scope.
+Explicit `attributes.model_id` sets both outputs to the same value.
+
+Geo inference profile IDs (`us.*`) use inference-profile ARNs for `provision_model_id`; foundation model IDs (`deepseek.v3.2`, `openai.gpt-oss-20b-1:0`) use foundation-model ARNs for `model_source` and IAM invoke scope.
+
+**Vendor × endpoint (which output / URL to use):**
+
+| Vendor | Primary client | Base URL | Model output |
+|--------|----------------|----------|--------------|
+| `openai` | OpenAI SDK Chat Completions | `openai_mantle_base_url` | `model_id` (mantle) |
+| `indie` | OpenAI SDK Chat Completions | `openai_mantle_base_url` | `model_id` (mantle) |
+| `anthropic` | Pi / runtime / Messages API | `openai_base_url` or mantle Messages path | `provision_model_id` for Pi; mantle Messages ID in `model_id` |
+
+Anthropic on mantle does **not** use `openai_mantle_base_url` Chat Completions. Prefer **`openai` or `indie`** for OpenRouter-style OpenAI SDK smoke tests.
 
 **Standard deps inputs:** `env`, `env-suffix`, `repo`, optional `aws_region`.
 
@@ -147,20 +160,20 @@ api_key_age_days = null         # optional expiry (e.g. 90); null = no expiry
 | Semantic meaning (cheap / daily / heavy) | Concrete model behind each cell |
 | `model_id` escape hatch | Caller-owned; no tier map update needed |
 
-**v1 tier map (maintained in `tiers.tf`; update freely during spike/dev):**
+**v1 tier map (maintained in `tiers.tf`; mantle + provision IDs — see module README):**
 
-| Vendor | Tier | Intent | Starting model ID |
-|--------|------|--------|-------------------|
-| `anthropic` | `fast` | Cheap/quick | `us.anthropic.claude-haiku-4-5-20251001-v1:0` |
-| `anthropic` | `balanced` | Daily coding | `us.anthropic.claude-sonnet-4-6` |
-| `anthropic` | `capable` | Heavier reasoning | `us.anthropic.claude-opus-4-6-v1` |
-| `openai` | `fast` | Smaller OSS GPT | `openai.gpt-oss-20b-1:0` |
-| `openai` | `balanced` / `capable` | Larger OSS GPT | `openai.gpt-oss-120b-1:0` |
-| `indie` | `fast` | Small open-weight | `us.meta.llama3-2-11b-instruct-v1:0` |
-| `indie` | `balanced` | Daily open-weight | `deepseek.v3.2` |
-| `indie` | `capable` | Reasoning open-weight | `us.deepseek.r1-v1:0` |
+| Vendor | Tier | Intent | Mantle `model_id` | Provision ID |
+|--------|------|--------|-------------------|--------------|
+| `anthropic` | `fast` | Cheap/quick | `anthropic.claude-haiku-4-5` | `us.anthropic.claude-haiku-4-5-20251001-v1:0` |
+| `anthropic` | `balanced` | Daily coding | `anthropic.claude-sonnet-5` | `us.anthropic.claude-sonnet-5` |
+| `anthropic` | `capable` | Heavier reasoning | `anthropic.claude-opus-4-7` | `us.anthropic.claude-opus-4-7` |
+| `openai` | `fast` | Smaller OSS GPT | `openai.gpt-oss-20b` | `openai.gpt-oss-20b-1:0` |
+| `openai` | `balanced` / `capable` | Larger OSS GPT | `openai.gpt-oss-120b` | `openai.gpt-oss-120b-1:0` |
+| `indie` | `fast` | Small open-weight | `google.gemma-3-4b-it` | `google.gemma-3-4b-it` |
+| `indie` | `balanced` | Daily open-weight | `deepseek.v3.2` | `deepseek.v3.2` |
+| `indie` | `capable` | Reasoning open-weight | `qwen.qwen3-235b-a22b-2507` | `qwen.qwen3-235b-a22b-2507-v1:0` |
 
-Prefer **geo inference profile IDs** (`us.*`) for Anthropic and cross-region models. Some indie/openai models use in-region foundation model IDs — the module handles both ARN shapes.
+Prefer **geo inference profile IDs** (`us.*`) for Anthropic provision IDs. Indie/openai mantle models are chosen from models that support Chat Completions on `bedrock-mantle` (see AWS model cards / `GET /v1/models`).
 
 **Try a new model before updating the tier map:**
 
@@ -172,7 +185,8 @@ attributes = { model_id = "us.anthropic.claude-sonnet-4-7" }  # hypothetical
 
 | Output | Description |
 |--------|-------------|
-| `model_id` | Resolved inference profile or foundation model ID |
+| `model_id` | Mantle Chat Completions model ID (or explicit `attributes.model_id`) |
+| `provision_model_id` | Runtime / Pi / IAM model ID (geo profile or foundation model) |
 | `tier` | Echo when tier was used; null when `model_id` was used |
 | `vendor` | Echo when tier was used; null when `model_id` was used |
 | `openai_base_url` | `https://bedrock-runtime.{region}.amazonaws.com/v1` |
