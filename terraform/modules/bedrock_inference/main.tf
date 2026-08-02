@@ -80,9 +80,11 @@ data "aws_region" "current" {}
 
 locals {
   region                 = coalesce(var.aws_region, data.aws_region.current.region)
-  resolved_model_id      = var.attributes.model_id != null ? var.attributes.model_id : local.tier_models[var.attributes.vendor][var.attributes.tier]
-  uses_geo_profile       = can(regex("^(us|eu|global|jp|au|us-gov)\\.", local.resolved_model_id))
-  model_source_arn       = local.uses_geo_profile ? "arn:aws:bedrock:${local.region}:${data.aws_caller_identity.current.account_id}:inference-profile/${local.resolved_model_id}" : "arn:aws:bedrock:${local.region}::foundation-model/${local.resolved_model_id}"
+  tier_selection         = var.attributes.model_id == null ? local.tier_models[var.attributes.vendor][var.attributes.tier] : null
+  resolved_model_id      = var.attributes.model_id != null ? var.attributes.model_id : local.tier_selection.mantle_model_id
+  provision_model_id     = var.attributes.model_id != null ? var.attributes.model_id : local.tier_selection.provision_model_id
+  uses_geo_profile       = can(regex("^(us|eu|global|jp|au|us-gov)\\.", local.provision_model_id))
+  model_source_arn       = local.uses_geo_profile ? "arn:aws:bedrock:${local.region}:${data.aws_caller_identity.current.account_id}:inference-profile/${local.provision_model_id}" : "arn:aws:bedrock:${local.region}::foundation-model/${local.provision_model_id}"
   openai_base_url        = "https://bedrock-runtime.${local.region}.amazonaws.com/v1"
   openai_mantle_base_url = "https://bedrock-mantle.${local.region}.api.aws/v1"
   iam_user_name          = "bedrock-inference${var.env-suffix}"

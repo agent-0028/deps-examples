@@ -26,8 +26,8 @@ run "anthropic_fast_tier_resolves_model_id" {
   }
 
   assert {
-    condition     = output.model_id == "us.anthropic.claude-haiku-4-5-20251001-v1:0"
-    error_message = "anthropic fast tier should resolve to the Haiku inference profile ID"
+    condition     = output.model_id == "anthropic.claude-haiku-4-5"
+    error_message = "anthropic fast tier should resolve to the Haiku mantle model ID"
   }
 
   assert {
@@ -49,8 +49,8 @@ run "anthropic_balanced_tier_resolves_model_id" {
   }
 
   assert {
-    condition     = output.model_id == "us.anthropic.claude-sonnet-4-6"
-    error_message = "anthropic balanced tier should resolve to the Sonnet inference profile ID"
+    condition     = output.model_id == "anthropic.claude-sonnet-5"
+    error_message = "anthropic balanced tier should resolve to the Sonnet 5 mantle model ID"
   }
 }
 
@@ -62,8 +62,8 @@ run "anthropic_capable_tier_resolves_model_id" {
   }
 
   assert {
-    condition     = output.model_id == "us.anthropic.claude-opus-4-6-v1"
-    error_message = "anthropic capable tier should resolve to the Opus inference profile ID"
+    condition     = output.model_id == "anthropic.claude-opus-4-7"
+    error_message = "anthropic capable tier should resolve to the Opus 4.7 mantle model ID"
   }
 }
 
@@ -88,8 +88,8 @@ run "openai_fast_tier_resolves_model_id" {
   }
 
   assert {
-    condition     = output.model_id == "openai.gpt-oss-20b-1:0"
-    error_message = "openai fast tier should resolve to gpt-oss-20b"
+    condition     = output.model_id == "openai.gpt-oss-20b"
+    error_message = "openai fast tier should resolve to the gpt-oss-20b mantle model ID"
   }
 
   assert {
@@ -106,8 +106,8 @@ run "openai_capable_tier_resolves_model_id" {
   }
 
   assert {
-    condition     = output.model_id == "openai.gpt-oss-120b-1:0"
-    error_message = "openai capable tier should resolve to gpt-oss-120b"
+    condition     = output.model_id == "openai.gpt-oss-120b"
+    error_message = "openai capable tier should resolve to the gpt-oss-120b mantle model ID"
   }
 }
 
@@ -119,8 +119,8 @@ run "indie_fast_tier_resolves_model_id" {
   }
 
   assert {
-    condition     = output.model_id == "meta.llama3-1-8b-instruct-v1:0"
-    error_message = "indie fast tier should resolve to Llama 3.1 8B"
+    condition     = output.model_id == "google.gemma-3-4b-it"
+    error_message = "indie fast tier should resolve to Gemma 3 4B mantle model ID"
   }
 
   assert {
@@ -150,8 +150,8 @@ run "indie_capable_tier_resolves_model_id" {
   }
 
   assert {
-    condition     = output.model_id == "us.deepseek.r1-v1:0"
-    error_message = "indie capable tier should resolve to DeepSeek R1"
+    condition     = output.model_id == "qwen.qwen3-235b-a22b-2507"
+    error_message = "indie capable tier should resolve to Qwen3 235B mantle model ID"
   }
 }
 
@@ -313,6 +313,32 @@ run "openai_base_url_contains_region" {
   assert {
     condition     = output.openai_mantle_base_url == "https://bedrock-mantle.eu-central-1.api.aws/v1"
     error_message = "openai_mantle_base_url should use the configured region"
+  }
+}
+
+run "openai_fast_uses_foundation_model_arn" {
+  command = plan
+
+  variables {
+    attributes = { tier = "fast", vendor = "openai" }
+  }
+
+  assert {
+    condition     = aws_bedrock_inference_profile.this[0].model_source[0].copy_from == "arn:aws:bedrock:us-west-2::foundation-model/openai.gpt-oss-20b-1:0"
+    error_message = "openai mantle IDs should provision against the runtime foundation model ARN"
+  }
+}
+
+run "indie_capable_uses_foundation_model_arn" {
+  command = plan
+
+  variables {
+    attributes = { tier = "capable", vendor = "indie" }
+  }
+
+  assert {
+    condition     = aws_bedrock_inference_profile.this[0].model_source[0].copy_from == "arn:aws:bedrock:us-west-2::foundation-model/qwen.qwen3-235b-a22b-2507-v1:0"
+    error_message = "qwen capable tier should use the runtime foundation model ARN for model_source"
   }
 }
 

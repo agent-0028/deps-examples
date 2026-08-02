@@ -2,7 +2,7 @@ resource "aws_bedrock_inference_profile" "this" {
   count = var.create_application_profile ? 1 : 0
 
   name        = local.inference_profile_name
-  description = "Application inference profile for ${local.resolved_model_id}"
+  description = "Application inference profile for ${local.provision_model_id}"
 
   model_source {
     copy_from = local.model_source_arn
@@ -108,5 +108,5 @@ output "pi_env" {
 }
 
 output "pi_command" {
-  value = "pi --provider amazon-bedrock --model ${local.resolved_model_id}"
+  value = "pi --provider amazon-bedrock --model ${local.provision_model_id}"
 }
