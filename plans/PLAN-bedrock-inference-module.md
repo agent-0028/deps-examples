@@ -230,6 +230,58 @@ Application profile `model_source.copy_from` points at this system inference pro
 4. Rotation: change `api_key_age_days` or taint credential resource.
 5. Destroy: IAM user + key removed with module.
 
+### Operator secret handling (v1)
+
+Terraform **creates** the Bedrock bearer token; the operator **copies** it to wherever consumers read secrets. No auto-sync to Secrets Manager, GitHub Actions secrets, or a password manager in v1 — manual is intentional.
+
+**What the key is:** An IAM service-specific credential for Bedrock (`service_name = "bedrock.amazonaws.com"`). It is a bearer token scoped to the module’s IAM user (invoke only on the configured inference profiles), not a general AWS access key.
+
+**Create (after Deploy):**
+
+```mermaid
+flowchart LR
+  Deploy[Deploy Infra apply] --> AWS[AWS creates Bedrock API key]
+  AWS --> State[Secret in Terraform state]
+  State --> Output[sensitive output api_key]
+  Output --> Human["Human: tofu output -raw api_key"]
+  Human --> Store[Operator secret store / env / Pi config]
+```
+
+1. Apply creates IAM user, policy, and service-specific credential.
+2. AWS returns the secret **only at create time** (cannot re-view in console later).
+3. Terraform persists it in remote state and exposes `api_key` (sensitive).
+4. Operator pulls the secret locally — use `-raw` and assign to an env var to avoid printing.
+
+**Prerequisites for `tofu output -raw api_key`:** This reads from **remote state**, not from AWS directly. It only works when:
+
+- You are in the **correct root stack directory** for that environment (`terraform/nonprod` or `terraform/prod` — each has its own S3 backend key and state).
+- You have run **`tofu init`** there at least once (backend configured; `.terraform/` present).
+- Your shell has **AWS credentials** (env vars, shared config profile, or SSO) that can **read the state bucket** (`deps-examples-bucket-for-state` in us-west-2). These are your operator/IAM credentials for state access — not the Bedrock bearer token you are retrieving.
+- **Deploy has already run** for that stack so the credential exists in state.
+- The stack **forwards** `api_key` as a root-level output (see example consumer section below).
+
+Without init + state-read credentials, `tofu output` cannot reach the secret even though it lives in state. CI retrieve is intentionally out of scope — this step is local and human-only.
+
+```bash
+cd terraform/nonprod   # or prod — must match the env you deployed
+tofu init              # if not already done
+export AWS_BEARER_TOKEN_BEDROCK=$(tofu output -raw api_key)
+export AWS_REGION=$(tofu output -raw region)
+# model_id, openai_base_url as needed
+```
+
+To confirm non-empty without printing: `tofu output -raw api_key | wc -c`.
+
+**Ongoing use:** Runtime tools (Pi, curl, apps) use the **operator’s copy** in env, config, or a password manager. State still holds the secret — you can re-run `tofu output -raw api_key` from the same env stack directory with init + state-read credentials. CI must never run or log this.
+
+**New endpoint:** Each module instance gets its own IAM user and API key (names include `env-suffix`). Standing up a new consumer (new module block, env, or tier/profile instance) means: Deploy → pull outputs from that stack → store/configure for that consumer. Nonprod and prod are separate pulls.
+
+**Rotation:** Change `api_key_age_days`, or taint/replace `aws_iam_service_specific_credential` and apply. That issues a **new** secret and invalidates the old one — repeat the manual pull and update every place the token is stored.
+
+**Destroy:** Destroy Infra or removing the module deletes the IAM user and key. Delete or update stale copies in local env/config.
+
+**Out of scope (v1):** AWS Secrets Manager integration, GitHub Actions secret provisioning, per-developer key automation. Consider later if manual pull becomes a bottleneck.
+
 ---
 
 ## Agent integration
