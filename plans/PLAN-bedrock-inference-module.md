@@ -206,12 +206,11 @@ system_inference_profile_arn = "arn:aws:bedrock:${region}:${account_id}:inferenc
 
 Application profile `model_source.copy_from` points at this system inference profile ARN.
 
-**IAM policy (v1, least privilege):**
+**IAM policy (v1):**
 
-- `bedrock:InvokeModel`, `bedrock:InvokeModelWithResponseStream` on:
-  - Application inference profile ARN
-  - System inference profile ARN for resolved model
-- Broaden only if apply testing shows geo profiles require it
+- `bedrock:InvokeModel`, `bedrock:InvokeModelWithResponseStream` on application + model source ARNs (Pi native / Converse path)
+- `bedrock-mantle:CreateInference`, `bedrock-mantle:CallWithBearerToken` on `*` (OpenAI SDK / Chat Completions via `openai_mantle_base_url` — see [Bedrock mantle inference permissions](https://docs.aws.amazon.com/bedrock/latest/userguide/inference-how.html))
+- Broaden `bedrock:InvokeModel` resources only if apply testing shows geo profiles require destination-region foundation model ARNs
 
 **Secret lifecycle:**
 
@@ -312,7 +311,7 @@ After **Deploy Infra nonprod**, confirm the connection bundle works. Preferred o
 
 #### e2e smoke — Bun + TypeScript OpenAI client
 
-Simplest possible **OpenRouter-style** smoke test: one `fetch` to Bedrock Chat Completions using stack outputs. Lives under the nonprod root so it can shell out to `tofu output` against the same remote state as Deploy — intentionally messy and spike-local, not library code.
+Simplest **OpenRouter-style** smoke test: read stack outputs, call Bedrock Chat Completions via the official [`openai`](https://www.npmjs.com/package/openai) npm package. Lives under the nonprod root so it can shell out to `tofu output` against the same remote state as Deploy — intentionally messy and spike-local, not library code.
 
 **Layout (spike branch, nonprod only):**
 
@@ -321,12 +320,14 @@ terraform/nonprod/
 ├── example-bedrock-inference.tf
 └── test/
     └── e2e/
-        └── smoke.ts      # single file; no test framework
+        ├── package.json   # openai dependency only
+        └── smoke.ts
 ```
 
 **Assumptions (brittle on purpose):**
 
 - `bun` is on PATH
+- `bun install` has been run once in `test/e2e/`
 - `tofu init` has been run in `terraform/nonprod`
 - **Deploy Infra nonprod** has already applied the bedrock example
 - Operator shell can **read remote state** (same creds as `tofu output`)
@@ -336,22 +337,24 @@ terraform/nonprod/
 
 ```bash
 cd terraform/nonprod/test/e2e
+bun install   # once
 bun smoke.ts
 ```
 
 **What `smoke.ts` does:**
 
-1. `tofu -chdir=../.. output -raw` for `bedrock_inference_openai_base_url`, `bedrock_inference_api_key`, and `bedrock_inference_model_id`
-2. `POST {base_url}/chat/completions` with `Authorization: Bearer {api_key}` and a one-line user message (e.g. “Reply with exactly: pong”)
-3. Prints the assistant message on success; throws on non-2xx or missing `choices[0].message.content`
+1. `tofu -chdir=../.. output -raw` for `bedrock_inference_openai_mantle_base_url` (OpenAI-compatible; prefer over bedrock-runtime for this client), `bedrock_inference_api_key`, and `bedrock_inference_model_id`
+2. `new OpenAI({ baseURL, apiKey })` then `client.chat.completions.create(...)` with a one-line user message (e.g. “Reply with exactly: pong”)
+3. Prints the assistant message on success; throws if the SDK call fails or content is missing
 
-No `package.json`, no OpenAI SDK — just Bun's built-in `fetch` and `$` shell helper. If `bun`, `tofu`, outputs, or the model invoke fail, the script should blow up loudly.
+Minimal `package.json` pins only `openai`. If `bun`, `tofu`, outputs, or the model invoke fail, the script should blow up loudly.
 
 **Sketch:**
 
 ```typescript
 // terraform/nonprod/test/e2e/smoke.ts
 import { $ } from "bun";
+import OpenAI from "openai";
 
 const stack = `${import.meta.dir}/../..`;
 
@@ -359,30 +362,26 @@ async function output(name: string) {
   return (await $`tofu -chdir=${stack} output -raw ${name}`.text()).trim();
 }
 
-const baseUrl = await output("bedrock_inference_openai_base_url");
-const apiKey = await output("bedrock_inference_api_key");
-const model = await output("bedrock_inference_model_id");
-
-const res = await fetch(`${baseUrl}/chat/completions`, {
-  method: "POST",
-  headers: {
-    Authorization: `Bearer ${apiKey}`,
-    "Content-Type": "application/json",
-  },
-  body: JSON.stringify({
-    model,
-    messages: [{ role: "user", content: "Reply with exactly: pong" }],
-    max_tokens: 16,
-  }),
+const client = new OpenAI({
+  baseURL: await output("bedrock_inference_openai_mantle_base_url"),
+  apiKey: await output("bedrock_inference_api_key"),
 });
 
-if (!res.ok) throw new Error(`${res.status} ${await res.text()}`);
+const completion = await client.chat.completions.create({
+  model: await output("bedrock_inference_model_id"),
+  messages: [{ role: "user", content: "Reply with exactly: pong" }],
+  max_tokens: 16,
+});
 
-const { choices } = await res.json();
-console.log(choices[0].message.content);
+const content = completion.choices?.[0]?.message?.content;
+if (!content) {
+  console.error(JSON.stringify(completion, null, 2));
+  throw new Error("No assistant content in response");
+}
+console.log(content);
 ```
 
-This exercises the same path as OpenRouter-style clients: base URL + bearer token + model ID. It does **not** run in CI (needs state read + live invoke + inference cost).
+This exercises the same path as OpenRouter-style clients: base URL + bearer token + model ID via the standard OpenAI SDK. It does **not** run in CI (needs state read + live invoke + inference cost).
 
 **Scope:** spike / nonprod human gate only. Not copied to deps. Optional to keep on `main` after Phase 3 as operator tooling, or drop when Pi/curl suffice.
 
