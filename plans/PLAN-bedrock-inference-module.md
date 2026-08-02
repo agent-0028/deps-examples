@@ -11,7 +11,7 @@ Module plan for provisioning a Bedrock-backed LLM connection bundle: tier-based 
 
 ## Implementation checklist
 
-- [ ] **Phase 1:** Spike branch; `terraform/modules/bedrock_inference/` + `tests/` + relative `example-bedrock-inference.tf`; green `tofu test`; push spike; Check Infra; human Deploy → verify (Pi/curl) → Destroy; delete spike
+- [ ] **Phase 1:** Spike branch; `terraform/modules/bedrock_inference/` + `tests/` + relative `terraform/nonprod/example-bedrock-inference.tf` only; green `tofu test`; push spike; Check Infra nonprod; human Deploy → verify (Pi/curl) → Destroy; delete spike
 - [ ] **Phase 2:** Copy module to deps; validate + test; open deps PR
 - [ ] **Phase 3:** Follow-on examples branch + PR from `main`: git-pinned `example-bedrock-inference.tf` only; Check Infra; merge PR
 - [ ] **Phase 4:** Merge deps PR; ensure examples pin is `?ref=main`; human Deploy Infra nonprod; verify invoke; optional Destroy
@@ -92,46 +92,38 @@ bedrock_inference/
 
 ### Inputs
 
-**Model selection — tier or explicit model_id (mutually exclusive):**
+**Model selection — vendor + tier or explicit model_id (mutually exclusive for tier/model_id):**
 
 ```hcl
 variable "attributes" {
   type = object({
     tier     = optional(string) # "fast" | "balanced" | "capable"
-    model_id = optional(string) # geo inference profile ID
+    model_id = optional(string) # inference profile ID or foundation model ID
+    vendor   = optional(string, "anthropic") # "anthropic" | "openai" | "indie"
   })
-
-  validation {
-    condition     = (var.attributes.tier != null) != (var.attributes.model_id != null)
-    error_message = "Set exactly one of attributes.tier or attributes.model_id."
-  }
-
-  validation {
-    condition = (
-      var.attributes.tier == null ||
-      contains(["fast", "balanced", "capable"], var.attributes.tier)
-    )
-    error_message = "attributes.tier must be fast, balanced, or capable."
-  }
-
-  validation {
-    condition = (
-      var.attributes.model_id == null ||
-      can(regex("^(us|eu|global|jp|au)\\.", var.attributes.model_id))
-    )
-    error_message = "attributes.model_id must be a geo or global inference profile ID."
-  }
+  # ... validations for tier XOR model_id, tier enum, vendor enum, model_id format
 }
 ```
+
+**Vendors:**
+
+| Vendor | Meaning | Examples on Bedrock |
+|--------|---------|---------------------|
+| `anthropic` | Anthropic Claude (default) | Haiku, Sonnet, Opus geo profiles |
+| `openai` | OpenAI models on Bedrock | gpt-oss-20b, gpt-oss-120b |
+| `indie` | Independent / open-weight / non-big-two | Llama, DeepSeek, Qwen, Mistral, etc. |
+
+`indie` is the short name for the third bucket — not everything is open source, but it covers Chinese labs, Meta, Mistral, and similar vendors outside Anthropic/OpenAI.
 
 **Resolution:**
 
 ```hcl
-resolved_model_id = coalesce(
-  var.attributes.model_id,
-  local.tier_models[var.attributes.tier]
-)
+resolved_model_id = var.attributes.model_id != null
+  ? var.attributes.model_id
+  : local.tier_models[var.attributes.vendor][var.attributes.tier]
 ```
+
+Geo inference profile IDs (`us.*`) use inference-profile ARNs; foundation model IDs (`deepseek.v3.2`, `openai.gpt-oss-20b-1:0`) use foundation-model ARNs for `model_source` and IAM invoke scope.
 
 **Standard deps inputs:** `env`, `env-suffix`, `repo`, optional `aws_region`.
 
@@ -149,28 +141,26 @@ api_key_age_days = null         # optional expiry (e.g. 90); null = no expiry
 
 | What stays stable | What changes over time |
 |-------------------|------------------------|
-| `tier = "fast" \| "balanced" \| "capable"` | Inference profile IDs in `tiers.tf` |
+| `vendor = "anthropic" \| "openai" \| "indie"` | Model IDs per vendor×tier in `tiers.tf` |
+| `tier = "fast" \| "balanced" \| "capable"` | Which model fulfills each vendor×tier cell |
 | Consumer `.tf` files | Module-only map updates when AWS ships new models |
-| Semantic meaning (cheap / daily / heavy) | Which Claude version fulfills each tier |
+| Semantic meaning (cheap / daily / heavy) | Concrete model behind each cell |
 | `model_id` escape hatch | Caller-owned; no tier map update needed |
 
-**When AWS releases a new model for a tier:**
+**v1 tier map (maintained in `tiers.tf`; update freely during spike/dev):**
 
-1. Update `tiers.tf` in the module (deps after promotion).
-2. Update `tofu test` asserts if they pin exact model ID strings.
-3. Check Infra → Deploy nonprod → verify invoke.
+| Vendor | Tier | Intent | Starting model ID |
+|--------|------|--------|-------------------|
+| `anthropic` | `fast` | Cheap/quick | `us.anthropic.claude-haiku-4-5-20251001-v1:0` |
+| `anthropic` | `balanced` | Daily coding | `us.anthropic.claude-sonnet-4-6` |
+| `anthropic` | `capable` | Heavier reasoning | `us.anthropic.claude-opus-4-6-v1` |
+| `openai` | `fast` | Smaller OSS GPT | `openai.gpt-oss-20b-1:0` |
+| `openai` | `balanced` / `capable` | Larger OSS GPT | `openai.gpt-oss-120b-1:0` |
+| `indie` | `fast` | Small open-weight | `us.meta.llama3-2-11b-instruct-v1:0` |
+| `indie` | `balanced` | Daily open-weight | `deepseek.v3.2` |
+| `indie` | `capable` | Reasoning open-weight | `us.deepseek.r1-v1:0` |
 
-Consumers using `tier` need no changes. Adding a new tier value (e.g. `"frontier"`) is a deliberate interface extension.
-
-**v1 tier map (us-west-2, geo prefix `us.`):**
-
-| Tier | Intent | System inference profile ID |
-|------|--------|------------------------------|
-| `fast` | Cheap/quick (Haiku) | `us.anthropic.claude-haiku-4-5-20251001-v1:0` |
-| `balanced` | Daily coding (Sonnet) | `us.anthropic.claude-sonnet-4-6` |
-| `capable` | Heavier reasoning (Opus) | `us.anthropic.claude-opus-4-6-v1` (confirm at apply) |
-
-Use **geo inference profile IDs** (`us.*`), not bare foundation model IDs — avoids 403/SCP issues.
+Prefer **geo inference profile IDs** (`us.*`) for Anthropic and cross-region models. Some indie/openai models use in-region foundation model IDs — the module handles both ARN shapes.
 
 **Try a new model before updating the tier map:**
 
@@ -182,8 +172,9 @@ attributes = { model_id = "us.anthropic.claude-sonnet-4-7" }  # hypothetical
 
 | Output | Description |
 |--------|-------------|
-| `model_id` | Resolved inference profile ID (for `--model` or API) |
+| `model_id` | Resolved inference profile or foundation model ID |
 | `tier` | Echo when tier was used; null when `model_id` was used |
+| `vendor` | Echo when tier was used; null when `model_id` was used |
 | `openai_base_url` | `https://bedrock-runtime.{region}.amazonaws.com/v1` |
 | `openai_mantle_base_url` | `https://bedrock-mantle.{region}.api.aws/v1` |
 | `region` | AWS region |
@@ -336,9 +327,10 @@ curl -s "https://bedrock-runtime.us-west-2.amazonaws.com/v1/chat/completions" \
 
 ## Example consumer (deps-examples)
 
-**Nonprod** — `tier = "fast"` (lower inference cost during dev):
+**Phase 1 spike (nonprod only)** — relative module source; `tier = "fast"` (lower inference cost during dev):
 
 ```hcl
+# terraform/nonprod/example-bedrock-inference.tf
 module "example_bedrock_inference" {
   source     = "../modules/bedrock_inference"
   attributes = { tier = "fast" }
@@ -348,9 +340,14 @@ module "example_bedrock_inference" {
 }
 ```
 
-**Prod** — `tier = "balanced"`.
+Do not add prod consumer wiring on the spike branch. Prod gets an example in the Phase 3 follow-on PR after the module is in deps.
 
-Forward module outputs at the stack level (mark `api_key` and `pi_env` sensitive) for post-deploy retrieval.
+**Phase 3 follow-on PR (both envs, git-pinned deps source):**
+
+- **Nonprod** — `tier = "fast"` (same as spike)
+- **Prod** — `tier = "balanced"`
+
+Forward module outputs at the stack level in each env (mark `api_key` and `pi_env` sensitive) for post-deploy retrieval.
 
 ---
 

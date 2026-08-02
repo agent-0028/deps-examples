@@ -18,7 +18,7 @@ Strategy for prototyping Terraform modules in this repo, promoting them to [deps
 
 ## Implementation checklist (generic)
 
-- [ ] **Phase 1:** Throwaway spike branch; `terraform/modules/<name>/` + `tests/` + relative `example-<name>.tf`; `tofu test` green; **push spike**; Check Infra nonprod; **human Deploy → verify → Destroy** on spike; delete spike — never merge
+- [ ] **Phase 1:** Throwaway spike branch; `terraform/modules/<name>/` + `tests/` + relative `example-<name>.tf` in **nonprod only**; `tofu test` green; **push spike**; Check Infra nonprod; **human Deploy → verify → Destroy** on spike; delete spike — never merge
 - [ ] **Phase 2:** Copy module directory (including tests) to `deps/terraform/modules/<name>/`; `fmt`, `validate`, `test`; push deps feature branch
 - [ ] **Phase 3:** Follow-on examples branch from `main` + PR: git `?ref=<deps-branch>` and `example-<name>.tf` only; Check Infra nonprod; merge PR (clean history — no spike commits)
 - [ ] **Phase 4:** Merge deps PR → `main`; merge examples integration PR → `main`; human runs Deploy Infra nonprod (optional Destroy)
@@ -161,7 +161,7 @@ flowchart TD
    - `<name>.tf` — resources and outputs
    - `tests/*.tftest.hcl` — interface contract tests
    - Follow existing conventions: `env`, `env-suffix`, `repo` wired from `module.config`; apply suffix internally (see [deps bucket module](../deps/terraform/modules/bucket/)).
-3. Add `example-<name>.tf` with relative source on the spike branch (required for stack-level plan and smoke test). These files are **not** what merges to `main` — the follow-on example PR (Phase 3) adds fresh git-pinned files instead.
+3. Add `example-<name>.tf` with relative source on the spike branch in **`terraform/nonprod/` only** (required for stack-level plan and smoke test). Do **not** add prod consumer wiring during the spike — prod is ephemeral examples-repo surface area and gets the git-pinned example in Phase 3 alongside nonprod. Spike example files are **not** what merges to `main` — the follow-on example PR (Phase 3) adds fresh git-pinned files in both envs instead.
 
 ```hcl
 module "example_foo" {
@@ -261,7 +261,7 @@ Update [AGENTS.md](../AGENTS.md) and [deps/AGENTS.md](../deps/AGENTS.md) with lo
 2. **Spike smoke test is standard** — for significant modules, human runs Deploy → verify → Destroy on the spike branch before deps promotion. Spike deploy uses shared nonprod state; Destroy cleans up.
 3. **Follow-on example PR only** — what merges to examples `main` is a small PR adding git-pinned `example-*.tf`. Branch fresh from `main`, not from spike.
 4. **Two repos, two merge stories** — deps PR merges module code; examples PR merges consumer wiring only.
-5. Add matching `example-*.tf` in both nonprod and prod on the example PR.
+5. **Nonprod only during Phase 1 spike** — relative `example-*.tf` lives under `terraform/nonprod/` until promotion. Phase 3 follow-on PR adds matching git-pinned `example-*.tf` in **both** nonprod and prod.
 6. Agents must not run Deploy/Destroy or local `tofu apply`/`tofu destroy`.
 
 ---
