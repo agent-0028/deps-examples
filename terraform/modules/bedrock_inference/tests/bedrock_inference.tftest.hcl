@@ -119,8 +119,8 @@ run "indie_fast_tier_resolves_model_id" {
   }
 
   assert {
-    condition     = output.model_id == "us.meta.llama3-2-11b-instruct-v1:0"
-    error_message = "indie fast tier should resolve to Llama 3.2 11B"
+    condition     = output.model_id == "meta.llama3-1-8b-instruct-v1:0"
+    error_message = "indie fast tier should resolve to Llama 3.1 8B"
   }
 
   assert {

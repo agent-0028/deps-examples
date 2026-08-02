@@ -13,9 +13,9 @@ locals {
       capable  = "openai.gpt-oss-120b-1:0"
     }
     indie = {
-      fast     = "us.meta.llama3-2-11b-instruct-v1:0"
-      balanced = "deepseek.v3.2"
-      capable  = "us.deepseek.r1-v1:0"
+      fast     = "meta.llama3-1-8b-instruct-v1:0" # ON_DEMAND + INFERENCE_PROFILE in us-west-2
+      balanced = "deepseek.v3.2"                  # ON_DEMAND
+      capable  = "us.deepseek.r1-v1:0"            # INFERENCE_PROFILE (geo ID for deepseek.r1-v1:0)
     }
   }
 }
