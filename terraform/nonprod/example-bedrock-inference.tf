@@ -11,6 +11,10 @@ output "bedrock_inference_model_id" {
   value = module.example_bedrock_inference.model_id
 }
 
+output "bedrock_inference_provision_model_id" {
+  value = module.example_bedrock_inference.provision_model_id
+}
+
 output "bedrock_inference_tier" {
   value = module.example_bedrock_inference.tier
 }

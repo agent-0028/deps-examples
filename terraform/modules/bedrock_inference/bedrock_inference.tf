@@ -69,6 +69,10 @@ output "model_id" {
   value = local.resolved_model_id
 }
 
+output "provision_model_id" {
+  value = local.provision_model_id
+}
+
 output "tier" {
   value = var.attributes.tier
 }

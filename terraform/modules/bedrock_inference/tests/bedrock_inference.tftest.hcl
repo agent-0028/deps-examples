@@ -31,6 +31,11 @@ run "anthropic_fast_tier_resolves_model_id" {
   }
 
   assert {
+    condition     = output.provision_model_id == "us.anthropic.claude-haiku-4-5-20251001-v1:0"
+    error_message = "anthropic fast tier should expose the geo profile ID for Pi and IAM"
+  }
+
+  assert {
     condition     = output.tier == "fast"
     error_message = "tier output should echo the input tier"
   }
@@ -90,6 +95,11 @@ run "openai_fast_tier_resolves_model_id" {
   assert {
     condition     = output.model_id == "openai.gpt-oss-20b"
     error_message = "openai fast tier should resolve to the gpt-oss-20b mantle model ID"
+  }
+
+  assert {
+    condition     = output.provision_model_id == "openai.gpt-oss-20b-1:0"
+    error_message = "openai fast tier should expose the runtime foundation model ID for Pi and IAM"
   }
 
   assert {
@@ -165,6 +175,11 @@ run "explicit_model_id" {
   assert {
     condition     = output.model_id == "us.anthropic.claude-sonnet-4-7"
     error_message = "explicit model_id should pass through unchanged"
+  }
+
+  assert {
+    condition     = output.provision_model_id == "us.anthropic.claude-sonnet-4-7"
+    error_message = "explicit model_id should set provision_model_id to the same value"
   }
 
   assert {

@@ -9,7 +9,7 @@ Bedrock uses **different model ID strings** depending on how you call it. Each v
 | Field in `tiers.tf` | Output | Used for |
 |---------------------|--------|----------|
 | `mantle_model_id` | `model_id` | OpenAI SDK Chat Completions on `openai_mantle_base_url` |
-| `provision_model_id` | `provision_model_id` (via `pi_command`) | IAM invoke scope, application inference profile, Pi native Bedrock provider |
+| `provision_model_id` | `provision_model_id` | IAM invoke scope, application inference profile, Pi native Bedrock provider |
 
 When they differ (e.g. mantle `openai.gpt-oss-20b` vs runtime `openai.gpt-oss-20b-1:0`), pass **`model_id`** to OpenAI-compatible clients and **`provision_model_id`** (or `pi_command`) to Pi / runtime paths.
 
