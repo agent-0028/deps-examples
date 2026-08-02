@@ -361,6 +361,19 @@ run "create_api_key_true_includes_iam_resources" {
   }
 }
 
+run "iam_policy_includes_mantle_for_openai_sdk" {
+  command = plan
+
+  variables {
+    attributes = { tier = "fast", vendor = "anthropic" }
+  }
+
+  assert {
+    condition     = can(regex("bedrock-mantle:CreateInference", aws_iam_user_policy.invoke[0].policy))
+    error_message = "IAM policy should allow bedrock-mantle for OpenAI SDK clients"
+  }
+}
+
 run "create_api_key_false_skips_iam_resources" {
   command = plan
 

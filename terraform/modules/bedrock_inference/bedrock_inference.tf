@@ -45,6 +45,14 @@ resource "aws_iam_user_policy" "invoke" {
           local.model_source_arn,
         ])
       },
+      {
+        Effect = "Allow"
+        Action = [
+          "bedrock-mantle:CreateInference",
+          "bedrock-mantle:CallWithBearerToken",
+        ]
+        Resource = "*"
+      },
     ]
   })
 }
