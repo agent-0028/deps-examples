@@ -1,7 +1,7 @@
 module "example_bedrock_inference" {
   source = "../modules/bedrock_inference"
 
-  attributes = { tier = "fast", vendor = "indie" }
+  attributes = { tier = "fast", vendor = "openai" }
   env-suffix = module.config.env-suffix
   env        = module.config.env
   repo       = module.config.repo
