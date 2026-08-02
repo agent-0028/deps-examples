@@ -11,10 +11,10 @@ Module plan for provisioning a Bedrock-backed LLM connection bundle: tier-based 
 
 ## Implementation checklist
 
-- [ ] **Phase 1:** Spike branch; `terraform/modules/bedrock_inference/` + `tests/` + relative `terraform/nonprod/example-bedrock-inference.tf` only; green `tofu test`; push spike; Check Infra nonprod; human Deploy → verify (Pi/curl) → Destroy; delete spike
+- [ ] **Phase 1:** Spike branch; `terraform/modules/bedrock_inference/` + `tests/` + relative `terraform/nonprod/example-bedrock-inference.tf` only; green `tofu test`; push spike; Check Infra nonprod; human Deploy → verify (e2e smoke and/or Pi/curl) → Destroy; delete spike
 - [ ] **Phase 2:** Copy module to deps; validate + test; open deps PR
 - [ ] **Phase 3:** Follow-on examples branch + PR from `main`: git-pinned `example-bedrock-inference.tf` only; Check Infra; merge PR
-- [ ] **Phase 4:** Merge deps PR; ensure examples pin is `?ref=main`; human Deploy Infra nonprod; verify invoke; optional Destroy
+- [ ] **Phase 4:** Merge deps PR; ensure examples pin is `?ref=main`; human Deploy Infra nonprod; verify invoke (e2e smoke and/or Pi/curl); optional Destroy
 - [ ] **Phase 5:** Document bedrock module usage in AGENTS.md (after workflow doc from first cycle)
 
 ---
@@ -305,35 +305,121 @@ Pi can also use a custom provider in `models.json` with the same base URL + key 
 
 ### Post-deploy verification (human gate)
 
+After **Deploy Infra nonprod**, confirm the connection bundle works. Preferred order:
+
+1. **e2e smoke script** (OpenRouter-style consumer) — see below
+2. **Pi** or **curl** — manual alternatives
+
+#### e2e smoke — Bun + TypeScript OpenAI client
+
+Simplest possible **OpenRouter-style** smoke test: one `fetch` to Bedrock Chat Completions using stack outputs. Lives under the nonprod root so it can shell out to `tofu output` against the same remote state as Deploy — intentionally messy and spike-local, not library code.
+
+**Layout (spike branch, nonprod only):**
+
+```
+terraform/nonprod/
+├── example-bedrock-inference.tf
+└── test/
+    └── e2e/
+        └── smoke.ts      # single file; no test framework
+```
+
+**Assumptions (brittle on purpose):**
+
+- `bun` is on PATH
+- `tofu init` has been run in `terraform/nonprod`
+- **Deploy Infra nonprod** has already applied the bedrock example
+- Operator shell can **read remote state** (same creds as `tofu output`)
+- Stack forwards `bedrock_inference_*` outputs (see example consumer)
+
+**Run:**
+
+```bash
+cd terraform/nonprod/test/e2e
+bun smoke.ts
+```
+
+**What `smoke.ts` does:**
+
+1. `tofu -chdir=../.. output -raw` for `bedrock_inference_openai_base_url`, `bedrock_inference_api_key`, and `bedrock_inference_model_id`
+2. `POST {base_url}/chat/completions` with `Authorization: Bearer {api_key}` and a one-line user message (e.g. “Reply with exactly: pong”)
+3. Prints the assistant message on success; throws on non-2xx or missing `choices[0].message.content`
+
+No `package.json`, no OpenAI SDK — just Bun's built-in `fetch` and `$` shell helper. If `bun`, `tofu`, outputs, or the model invoke fail, the script should blow up loudly.
+
+**Sketch:**
+
+```typescript
+// terraform/nonprod/test/e2e/smoke.ts
+import { $ } from "bun";
+
+const stack = `${import.meta.dir}/../..`;
+
+async function output(name: string) {
+  return (await $`tofu -chdir=${stack} output -raw ${name}`.text()).trim();
+}
+
+const baseUrl = await output("bedrock_inference_openai_base_url");
+const apiKey = await output("bedrock_inference_api_key");
+const model = await output("bedrock_inference_model_id");
+
+const res = await fetch(`${baseUrl}/chat/completions`, {
+  method: "POST",
+  headers: {
+    Authorization: `Bearer ${apiKey}`,
+    "Content-Type": "application/json",
+  },
+  body: JSON.stringify({
+    model,
+    messages: [{ role: "user", content: "Reply with exactly: pong" }],
+    max_tokens: 16,
+  }),
+});
+
+if (!res.ok) throw new Error(`${res.status} ${await res.text()}`);
+
+const { choices } = await res.json();
+console.log(choices[0].message.content);
+```
+
+This exercises the same path as OpenRouter-style clients: base URL + bearer token + model ID. It does **not** run in CI (needs state read + live invoke + inference cost).
+
+**Scope:** spike / nonprod human gate only. Not copied to deps. Optional to keep on `main` after Phase 3 as operator tooling, or drop when Pi/curl suffice.
+
+#### Pi (native Bedrock provider)
+
 ```bash
 cd terraform/nonprod
-tofu output -raw api_key | wc -c    # confirm non-empty; do not print value
+tofu output -raw bedrock_inference_api_key | wc -c    # confirm non-empty; do not print value
 
-export AWS_BEARER_TOKEN_BEDROCK=$(tofu output -raw api_key)
-export AWS_REGION=$(tofu output -raw region)
-pi --provider amazon-bedrock --model $(tofu output -raw model_id)
+export AWS_BEARER_TOKEN_BEDROCK=$(tofu output -raw bedrock_inference_api_key)
+export AWS_REGION=$(tofu output -raw bedrock_inference_region)
+pi --provider amazon-bedrock --model $(tofu output -raw bedrock_inference_model_id)
 ```
 
-Or curl:
+#### curl
 
 ```bash
-curl -s "https://bedrock-runtime.us-west-2.amazonaws.com/v1/chat/completions" \
-  -H "Authorization: Bearer $(tofu output -raw api_key)" \
+cd terraform/nonprod
+curl -s "${bedrock_inference_openai_base_url}/chat/completions" \
+  -H "Authorization: Bearer $(tofu output -raw bedrock_inference_api_key)" \
   -H "Content-Type: application/json" \
-  -d '{"model":"'"$(tofu output -raw model_id)"'","messages":[{"role":"user","content":"ping"}]}'
+  -d '{"model":"'"$(tofu output -raw bedrock_inference_model_id)"'","messages":[{"role":"user","content":"ping"}]}'
 ```
+
+(Substitute output values or use `tofu output -raw` inline as in the Pi block.)
 
 ---
 
 ## Example consumer (deps-examples)
 
-**Phase 1 spike (nonprod only)** — relative module source; `tier = "fast"` (lower inference cost during dev):
+**Phase 1 spike (nonprod only)** — relative module source; exercise vendor + tier during dev:
 
 ```hcl
 # terraform/nonprod/example-bedrock-inference.tf
 module "example_bedrock_inference" {
   source     = "../modules/bedrock_inference"
-  attributes = { tier = "fast" }
+  attributes = { tier = "fast", vendor = "indie" }
   env-suffix = module.config.env-suffix
   env        = module.config.env
   repo       = module.config.repo
@@ -353,7 +439,7 @@ Forward module outputs at the stack level in each env (mark `api_key` and `pi_en
 
 ## `tofu test` cases
 
-All plan + `mock_provider "aws"` — AFK-safe, no AWS creds:
+All plan + `mock_provider "aws"` — AFK-safe, no AWS creds. Live invoke is covered separately by `terraform/nonprod/test/e2e/smoke.ts` (human, post-Deploy).
 
 - `fast`, `balanced`, `capable` → correct `model_id` from tier map
 - Explicit `model_id` → output matches input; `tier` is null
@@ -371,7 +457,7 @@ All plan + `mock_provider "aws"` — AFK-safe, no AWS creds:
 1. **Opus tier availability** in us-west-2 — verify model card; adjust `tiers.tf` if needed.
 2. **API key in state** — accepted for v1; retrieve via output after deploy; do not commit or log.
 3. **IAM invoke scope** — may need policy tuning after first real invoke.
-4. **Inference cost** — accrues during human verification (Pi/curl), not from IAM/profile resources alone.
+4. **Inference cost** — accrues during human verification (e2e smoke, Pi/curl), not from IAM/profile resources alone.
 5. **OpenRouter literal compatibility** — this module targets OpenAI Chat Completions shape on Bedrock, not OpenRouter routing headers or multi-vendor catalog.
 
 ---
@@ -386,6 +472,7 @@ All plan + `mock_provider "aws"` — AFK-safe, no AWS creds:
 - Bedrock API key (default on) + IAM invoke policy
 - OpenAI-compatible URL outputs + Pi env/command outputs
 - `tofu test` suite (lifts to deps with module)
+- Nonprod e2e smoke script (`test/e2e/smoke.ts`) — spike-only human gate; OpenRouter-style consumer
 
 **Later:**
 

@@ -193,7 +193,7 @@ tofu test
 
 6. Push spike branch; trigger **Check Infra nonprod** on the spike branch. Still do not merge or open a PR to `main`.
 
-7. **Human smoke test (standard for significant modules):** Run **Deploy Infra nonprod** from the spike branch → verify resources in AWS (outputs, console, invoke as applicable) → run **Destroy Infra nonprod**. Only promote to deps after this passes.
+7. **Human smoke test (standard for significant modules):** Run **Deploy Infra nonprod** from the spike branch → verify resources in AWS. For bedrock_inference, run `bun smoke.ts` in `terraform/nonprod/test/e2e/` (OpenRouter-style e2e) and/or Pi/curl → run **Destroy Infra nonprod**. Only promote to deps after this passes.
 
 8. Delete the spike branch (local and remote). Module code copies to deps in Phase 2; spike commits never land on `main`.
 
@@ -249,6 +249,7 @@ Update [AGENTS.md](../AGENTS.md) and [deps/AGENTS.md](../deps/AGENTS.md) with lo
 | Interface contract | `terraform/modules/<name>/tests/` | `tofu test` | Yes | No |
 | Stack plan (CI) | spike or feature branch | Check Infra | Yes | No |
 | Stack apply (spike smoke) | spike branch | Deploy Infra nonprod | No — human | Yes |
+| Live invoke smoke | `terraform/nonprod/test/e2e/` (bedrock example) | `bun smoke.ts` after Deploy | No — human | Yes (inference cost) |
 | Stack teardown (spike smoke) | spike branch | Destroy Infra nonprod | No — human | Yes |
 | Stack apply (post-merge) | `main` | Deploy Infra | No — human | Yes |
 | Teardown (post-merge) | `main` | Destroy Infra nonprod | No — human | Yes |
