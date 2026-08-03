@@ -1,0 +1,17 @@
+{
+  "name": "bedrock-inference-e2e-smoke",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "typecheck": "tsc --noEmit",
+    "smoke": "bun smoke.ts",
+    "list-mantle-models": "bun list-mantle-models.ts"
+  },
+  "dependencies": {
+    "openai": "^4.104.0"
+  },
+  "devDependencies": {
+    "bun-types": "^1.3.14",
+    "typescript": "^7.0.2"
+  }
+}
