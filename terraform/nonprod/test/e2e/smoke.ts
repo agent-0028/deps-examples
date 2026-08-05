@@ -18,10 +18,11 @@ function isCoralError(value: unknown): value is { Output: { __type: string } } {
 
 const baseURL = await output("bedrock_inference_openai_mantle_base_url");
 const apiKey = await output("bedrock_inference_api_key");
-const model = process.env.BEDROCK_SMOKE_MODEL ?? (await output("bedrock_inference_model_id"));
+const stackModel = await output("bedrock_inference_model_id");
+const model = process.env.BEDROCK_SMOKE_MODEL ?? stackModel;
 
 console.error(`baseURL=${baseURL}`);
-console.error(`model=${model}`);
+console.error(`stack model=${stackModel}; smoke model=${model}`);
 
 const client = new OpenAI({ baseURL, apiKey });
 
