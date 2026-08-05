@@ -17,19 +17,22 @@ Also ensure `terraform/nonprod` has been initialized (`tofu init`) and **Deploy 
 
 ```bash
 bun run smoke
-# or: bun smoke.ts
 ```
 
 Optional: `bun run typecheck`
 
-The smoke test invokes `bedrock_inference_model_id` from stack outputs (mantle Chat Completions IDs). Override only for debugging: `BEDROCK_SMOKE_MODEL=openai.gpt-oss-20b bun run smoke`.
+`smoke` invokes `bedrock_inference_model_id` from stack outputs — the model configured in `example-bedrock-inference.tf`.
+
+Optional: override the model to probe IAM authorization (expect failure when the model differs from what Terraform provisioned):
+
+```bash
+BEDROCK_SMOKE_MODEL=google.gemma-3-4b-it bun run smoke
+```
 
 ## List mantle model IDs
-
-Query what your account/region exposes on the mantle `/v1/models` endpoint (same auth as smoke):
 
 ```bash
 bun run list-mantle-models
 ```
 
-Use those IDs when updating `terraform/modules/bedrock_inference/tiers.tf`. AWS documents the split between mantle and runtime IDs on each [model card](https://docs.aws.amazon.com/bedrock/latest/userguide/models-get-info.html).
+Use those IDs when updating `tiers.tf` in deps. AWS documents mantle vs runtime IDs on each [model card](https://docs.aws.amazon.com/bedrock/latest/userguide/models-get-info.html).
