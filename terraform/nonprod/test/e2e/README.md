@@ -36,3 +36,13 @@ bun run list-mantle-models
 ```
 
 Use those IDs when updating `tiers.tf` in deps. AWS documents mantle vs runtime IDs on each [model card](https://docs.aws.amazon.com/bedrock/latest/userguide/models-get-info.html).
+
+## Pi coding agent
+
+Pi uses the **Converse / runtime** path (`provision_model_id`), not mantle Chat Completions. Stack outputs include `bedrock_inference_pi_env` and `bedrock_inference_pi_command`; this script formats them for copy-paste:
+
+```bash
+bun run pi-config
+```
+
+Add `--show-secrets` to include the bearer token in the shell exports and `auth.json` block.

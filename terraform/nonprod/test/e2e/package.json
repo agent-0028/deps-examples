@@ -5,7 +5,8 @@
   "scripts": {
     "typecheck": "tsc --noEmit",
     "smoke": "bun smoke.ts",
-    "list-mantle-models": "bun list-mantle-models.ts"
+    "list-mantle-models": "bun list-mantle-models.ts",
+    "pi-config": "bun pi-config.ts"
   },
   "dependencies": {
     "openai": "^4.104.0"
