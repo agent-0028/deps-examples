@@ -1,10 +1,10 @@
-import { $ } from "bun";
+import { parseArgs, tofuOutput } from "./stack";
 
-const stack = `${import.meta.dir}/../..`;
-const showSecrets = process.argv.includes("--show-secrets");
+const { stackEnv, flags } = parseArgs(process.argv.slice(2));
+const showSecrets = flags.includes("--show-secrets");
 
 async function output(name: string) {
-  return (await $`tofu -chdir=${stack} output -raw ${name}`.text()).trim();
+  return tofuOutput(stackEnv, name);
 }
 
 const [
@@ -39,7 +39,7 @@ const authJson = {
   },
 };
 
-console.log("# Pi + Bedrock (from nonprod stack outputs)");
+console.log(`# Pi + Bedrock (${stackEnv} stack outputs)`);
 console.log(`# tier=${tier} vendor=${vendor}`);
 console.log(`# mantle model_id=${mantleModelId} (OpenAI SDK smoke path)`);
 console.log(`# provision_model_id=${provisionModelId} (Pi / Converse path)`);

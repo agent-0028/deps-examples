@@ -1,19 +1,28 @@
-# Bedrock inference e2e smoke
+# Bedrock inference scripts
 
-Post-deploy check: OpenAI SDK → Bedrock mantle Chat Completions, using `tofu output` from `terraform/nonprod`.
+Post-deploy helpers that read OpenTofu stack outputs. Default stack is **nonprod**; pass `--env prod` or set `DEPS_STACK=prod` for prod.
 
 **Requires [Bun](https://bun.sh)** — install Bun on your machine first; this folder does not use npm/node.
 
 ## Setup (once)
 
 ```bash
-cd terraform/nonprod/test/e2e
+cd terraform/scripts
 bun install
 ```
 
-Also ensure `terraform/nonprod` has been initialized (`tofu init`) and **Deploy Infra nonprod** has applied the bedrock example.
+Ensure the target stack has been initialized (`tofu init` in `terraform/nonprod` or `terraform/prod`) and **Deploy Infra** has applied the bedrock example.
 
-## Run
+## Stack selection
+
+Default: `nonprod` (`terraform/nonprod`).
+
+```bash
+bun run smoke -- --env prod
+DEPS_STACK=prod bun run pi-config
+```
+
+## Smoke test
 
 ```bash
 bun run smoke

@@ -1,5 +1,5 @@
 {
-  "name": "bedrock-inference-e2e-smoke",
+  "name": "bedrock-inference-scripts",
   "private": true,
   "type": "module",
   "scripts": {

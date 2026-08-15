@@ -3,7 +3,7 @@
   "configVersion": 1,
   "workspaces": {
     "": {
-      "name": "bedrock-inference-e2e-smoke",
+      "name": "bedrock-inference-scripts",
       "dependencies": {
         "openai": "^4.104.0",
       },

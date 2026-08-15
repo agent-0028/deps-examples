@@ -1,13 +1,15 @@
-import { $ } from "bun";
+import { parseArgs, tofuOutput } from "./stack";
 
-const stack = `${import.meta.dir}/../..`;
+const { stackEnv } = parseArgs(process.argv.slice(2));
 
 async function output(name: string) {
-  return (await $`tofu -chdir=${stack} output -raw ${name}`.text()).trim();
+  return tofuOutput(stackEnv, name);
 }
 
 const baseURL = process.env.OPENAI_BASE_URL ?? (await output("bedrock_inference_openai_mantle_base_url"));
 const apiKey = process.env.OPENAI_API_KEY ?? (await output("bedrock_inference_api_key"));
+
+console.error(`stack=${stackEnv}`);
 
 const response = await fetch(`${baseURL}/models`, {
   headers: { Authorization: `Bearer ${apiKey}` },

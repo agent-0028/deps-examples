@@ -1,10 +1,10 @@
-import { $ } from "bun";
 import OpenAI from "openai";
+import { parseArgs, tofuOutput } from "./stack";
 
-const stack = `${import.meta.dir}/../..`;
+const { stackEnv } = parseArgs(process.argv.slice(2));
 
 async function output(name: string) {
-  return (await $`tofu -chdir=${stack} output -raw ${name}`.text()).trim();
+  return tofuOutput(stackEnv, name);
 }
 
 function isCoralError(value: unknown): value is { Output: { __type: string } } {
@@ -21,6 +21,7 @@ const apiKey = await output("bedrock_inference_api_key");
 const stackModel = await output("bedrock_inference_model_id");
 const model = process.env.BEDROCK_SMOKE_MODEL ?? stackModel;
 
+console.error(`stack=${stackEnv}`);
 console.error(`baseURL=${baseURL}`);
 console.error(`stack model=${stackModel}; smoke model=${model}`);
 
@@ -37,7 +38,7 @@ try {
 } catch (error) {
   if (error instanceof OpenAI.AuthenticationError) {
     throw new Error(
-      "Mantle returned 401 — redeploy nonprod so bedrock-invoke includes bedrock-mantle:CreateInference on bedrock-inference-nonprod.",
+      `Mantle returned 401 — redeploy ${stackEnv} so bedrock-invoke includes bedrock-mantle:CreateInference.`,
       { cause: error },
     );
   }
