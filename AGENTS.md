@@ -18,13 +18,28 @@ Coding agents and humans should avoid running `tofu apply` or `tofu destroy` loc
 
 Instead, code should be merged and pushed to GitHub and run using GitHub Actions through the web console.
 
+## Stack abstraction
+
+This repo applies application-style thinking to Terraform: **one shared implementation, environment-specific configuration**.
+
+- `terraform/modules/stack/` holds all example infrastructure. Both environments invoke this local module.
+- `terraform/prod/` and `terraform/nonprod/` are thin root modules. They run identical stack code; only inputs differ.
+- Each root module uses three files:
+  - `main.tf` — provider, remote backend, and global bootstrap only (backend cannot live in a child module).
+  - `variables.tf` — root-level variables.
+  - `stack.tf` — the deps config module call, the `module "stack"` call with a `config` object, and output forwarding.
+- The stack module takes a `config` object (built from `module.config` outputs) and `example_object_content`. It does not call the config module itself — prod and nonprod each invoke config with their own `env`, then pass the resulting values into the stack.
+- `example_object_content` is deliberately env-specific — it demonstrates passing a value from the root module through the stack into a resource (the S3 object module).
+
+When adding new shared resources, put them in `modules/stack/`. When a value must differ per environment, add a stack module variable and set it in each environment's `stack.tf`.
+
 ## Practices
 
 You can run `tofu plan` locally to smoke test changes.
 
 Pause and allow the user to review and commit changes when you are getting expected output from `tofu plan`.
 
-Always run `tofu fmt` to auto-correct formatting.
+Always run `tofu fmt -recursive` from `terraform/` so the stack module and environment roots are formatted.
 
 ## Environment lifecycle
 
@@ -35,6 +50,8 @@ This is an examples repo, not a long-lived staging environment. Treat the two en
 **prod** — Maintained like production. Create resources and keep them through example code changes until cost or scope makes that impractical. Apply prod only from `main` after merge. The prod destroy workflow is intentionally stubbed; do not destroy prod casually.
 
 Resource names are separated by `env-suffix` from the config module (nonprod gets `-nonprod`; prod gets none). Both environments may share one AWS account — naming is what keeps them apart.
+
+Remote state is fully separated: prod and nonprod each define their own backend key in `main.tf`. Never share state between environments.
 
 ## CI workflow
 

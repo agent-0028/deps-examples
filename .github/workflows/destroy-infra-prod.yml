@@ -11,7 +11,7 @@ jobs:
       - name: Install OpenTofu
         uses: agent-0028/deps/github_actions/install-tofu-client@main
       - name: OpenTofu lint
-        working-directory: terraform/prod
+        working-directory: terraform
         run: |
           tofu fmt --check --recursive
       - name: Tofu Destroy 🔥

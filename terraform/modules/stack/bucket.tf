@@ -3,7 +3,7 @@ module "example_bucket" {
   attributes = {
     bucket : "deps-examples-bucket"
   }
-  env-suffix = module.config.env-suffix
-  env        = module.config.env
-  repo       = module.config.repo
+  env-suffix = var.config.env_suffix
+  env        = var.config.env
+  repo       = var.config.repo
 }

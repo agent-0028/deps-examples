@@ -3,7 +3,7 @@ module "example_hosted_zone" {
 
   # Subdomain zone under sproutlandscapedesign.com (managed in tinisi/infra); example.com is reserved by AWS
   name       = "deps-examples.sproutlandscapedesign.com"
-  env-suffix = module.config.env-suffix
-  env        = module.config.env
-  repo       = module.config.repo
+  env-suffix = var.config.env_suffix
+  env        = var.config.env
+  repo       = var.config.repo
 }

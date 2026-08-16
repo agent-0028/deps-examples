@@ -6,6 +6,6 @@ module "example_dns_record" {
   records    = ["deps-examples-dns-record-example"]
   ttl        = 300
   zone_id    = module.example_hosted_zone.id
-  env-suffix = module.config.env-suffix
-  env        = module.config.env
+  env-suffix = var.config.env_suffix
+  env        = var.config.env
 }
