@@ -7,8 +7,8 @@ resource "aws_s3_bucket" "dns_alias_target" {
   bucket = local.www_fqdn
 
   tags = {
-    Repo        = module.config.repo
-    Environment = module.config.env
+    Repo        = var.config.repo
+    Environment = var.config.env
   }
 }
 
@@ -56,6 +56,6 @@ module "example_dns_alias" {
   value                  = aws_s3_bucket_website_configuration.dns_alias_target.website_endpoint
   alias_zone_id          = "Z3BJ6K6RIION7M" # S3 website hosted zone ID for us-west-2
   evaluate_target_health = false
-  env-suffix             = module.config.env-suffix
-  env                    = module.config.env
+  env-suffix             = var.config.env_suffix
+  env                    = var.config.env
 }

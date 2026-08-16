@@ -1,10 +1,9 @@
-module "example_bedrock_inference" {
-  source = "git::https://github.com/agent-0028/deps.git//terraform/modules/bedrock_inference?ref=main"
+output "env-suffix" {
+  value = var.config.env_suffix
+}
 
-  attributes = { tier = "fast", vendor = "openai" }
-  env-suffix = module.config.env-suffix
-  env        = module.config.env
-  repo       = module.config.repo
+output "env" {
+  value = var.config.env
 }
 
 output "bedrock_inference_model_id" {
