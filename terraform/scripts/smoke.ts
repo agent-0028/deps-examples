@@ -1,7 +1,11 @@
 import OpenAI from "openai";
+import { logStackAuth, resolveStackAuth } from "./auth";
 import { parseArgs, tofuOutput } from "./stack";
 
 const { stackEnv } = parseArgs(process.argv.slice(2));
+
+const stackAuth = await resolveStackAuth(stackEnv);
+logStackAuth(stackAuth);
 
 async function output(name: string) {
   return tofuOutput(stackEnv, name);
@@ -16,12 +20,11 @@ function isCoralError(value: unknown): value is { Output: { __type: string } } {
   );
 }
 
-const baseURL = await output("bedrock_inference_openai_mantle_base_url");
-const apiKey = await output("bedrock_inference_api_key");
+const baseURL = stackAuth.mantleBaseUrl;
+const apiKey = stackAuth.apiKey;
 const stackModel = await output("bedrock_inference_model_id");
 const model = process.env.BEDROCK_SMOKE_MODEL ?? stackModel;
 
-console.error(`stack=${stackEnv}`);
 console.error(`baseURL=${baseURL}`);
 console.error(`stack model=${stackModel}; smoke model=${model}`);
 

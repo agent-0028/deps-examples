@@ -6,9 +6,13 @@
     "typecheck": "tsc --noEmit",
     "smoke": "bun smoke.ts",
     "list-mantle-models": "bun list-mantle-models.ts",
+    "admin-list-mantle-models": "bun admin-list-mantle-models.ts",
     "pi-config": "bun pi-config.ts"
   },
   "dependencies": {
+    "@aws-sdk/client-sts": "^3.888.0",
+    "@aws-sdk/credential-providers": "^3.888.0",
+    "aws4fetch": "^1.0.20",
     "openai": "^4.104.0"
   },
   "devDependencies": {
